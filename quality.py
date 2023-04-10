@@ -2,6 +2,8 @@
 from __future__ import division
 import math
 import numpy
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from scipy import stats
 from models import *
@@ -270,6 +272,7 @@ def showTestInfo(itemsParams,itemSet,model):
     thetaSteps = 100
     thetaArray = numpy.linspace(minTheta,maxTheta,thetaSteps)
     infoArray = []
+    semArray = [] # standard error of measurement, or SD
     for theta in thetaArray:
         info = 0
         for itemID in itemSet:
@@ -279,12 +282,30 @@ def showTestInfo(itemsParams,itemSet,model):
             elif model == '2PL':
                 p = prob2PL(theta,itemsParams[itemID]['a'],itemsParams[itemID]['b'])
                 info += math.pow(itemsParams[itemID]['a'],2)*p*(1-p)
+        sem = 1/math.sqrt(info)
         infoArray.append(info)
+        semArray.append(sem)
+
+    # get a list of items difficulties
+    itemSetDifficulties = []
+    for key in itemSet.keys():
+        itemSetDifficulties.append(itemSet[key]['b'])
 
     #   visualize
-    plt.plot(thetaArray,infoArray)
-    plt.ylabel('Information')
-    plt.xlabel('theta')
-    plt.title('Test information')
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    ax1.plot(thetaArray, infoArray, 'g-')
+    ax2.plot(thetaArray, semArray, 'b-')
+
+    ax2.scatter(itemSetDifficulties,[1]*len(itemSetDifficulties))
+
+    ax1.set_xlabel(u'Словарный запас респондента, логит')
+    ax1.set_ylabel(u'Информация', color='g')
+    ax2.set_ylabel(u'Стандартная ошибка, логит', color='b')
+    plt.xlim([-5,5])
+
+    plt.title(u'Информация и стандартная ошибка теста')
     plt.grid()
     plt.show()
+
+    
