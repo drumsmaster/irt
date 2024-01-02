@@ -3,7 +3,7 @@ from __future__ import division
 import math
 import numpy
 import codecs
-from models import *
+from .models import *
 import copy
 import random
 #import quality
@@ -150,7 +150,7 @@ def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b
     #   delete bad persons
     for personID in badPersons:
         delPerson(personID,persons,items,personsParams)
-    print 'Check for persons with negative/positive responses only: {:d} persons deleted'.format(len(badPersons))
+    print('Check for persons with negative/positive responses only: {:d} persons deleted'.format(len(badPersons)))
 
     # prepare item parameters initial guess
     itemsParams = {}
@@ -176,13 +176,13 @@ def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b
     for itemID in badItems.keys():
         badItems[itemID] = itemsParams[itemID]
         delItem(itemID, persons, items, itemsParams)
-    print 'Check for items with negative/positive responses only: {:d} items deleted'.format(len(badItems.keys()))
+    print('Check for items with negative/positive responses only: {:d} items deleted'.format(len(badItems.keys())))
 
     # iterate until convergence is met
     iterFull = 1    #   loops with no elements skipped
     iterSub = 1     #   loops with some elements skipped
     while True:
-        print 'Iteration # {}/{}'.format(iterFull,iterSub)
+        print('Iteration # {}/{}'.format(iterFull,iterSub))
         maxThetaDif = 0
         maxBDif = 0
         maxADif = 0
@@ -259,8 +259,8 @@ def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b
             iterSub = 1
 
         #   check convergence
-        print 'max Theta dif = {:.2f}\tmax b dif = {:.2f}\tmax a dif = {:.2f}\tSkipped: {:d}/{:d}'.format(
-                maxThetaDif,maxBDif,maxADif,skipped,len(items)+len(persons))
+        print('max Theta dif = {:.2f}\tmax b dif = {:.2f}\tmax a dif = {:.2f}\tSkipped: {:d}/{:d}'.format(
+                maxThetaDif,maxBDif,maxADif,skipped,len(items)+len(persons)))
         if maxThetaDif < precisions['theta'] and maxBDif < precisions['b']\
                 and maxADif < precisions['a'] and skipped == 0:
             status = 'Precision level reached'
@@ -270,7 +270,7 @@ def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b
     thetaArray = [personsParams[i]['theta'] for i in personsParams]
     thetaMean = numpy.mean(thetaArray)
     thetaSD = numpy.std(thetaArray)
-    print 'theta mean = {:.2f}\ttheta SD = {:.2f}'.format(thetaMean,thetaSD)
+    print('theta mean = {:.2f}\ttheta SD = {:.2f}'.format(thetaMean,thetaSD))
     if model == '1PL':
         thetaSD = 1
     for personID in personsParams:
@@ -278,7 +278,7 @@ def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b
     for itemID in itemsParams:
         itemsParams[itemID]['b'] = (itemsParams[itemID]['b']-thetaMean)/thetaSD
         itemsParams[itemID]['a'] *= thetaSD
-    print 'Rescaled to thetaMean = 0'
+    print('Rescaled to thetaMean = 0')
 
     return personsParams,itemsParams,badItems,status
 

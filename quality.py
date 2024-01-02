@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from scipy import stats
-from models import *
+from .models import *
 
 def showPersonRespCurve(personResponse, personParams, itemsParams, model='1PL', pointsPerBin=5, minBinWidth=0.5):
 
@@ -204,7 +204,7 @@ def getItemQ1(itemResponse, itemParams, personsParams, model='1PL', pointsPerBin
             prob = prob2PL(theta,itemParams['a'],itemParams['b'])
         binsResponseExpected.append(prob)
         if prob == 0 or prob == 1:
-            print 'fuck',itemParams
+            print('fuck',itemParams)
 
     #   prepare residuals
     stdResiduals = residuals(binsResponseObserved,binsResponseExpected,hist['binsCount'])
