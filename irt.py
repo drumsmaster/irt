@@ -3,7 +3,7 @@ from __future__ import division
 import math
 import numpy
 import codecs
-from .models import *
+from irt.models import *
 import copy
 import random
 #import quality
