@@ -17,7 +17,7 @@ def prob1PL(theta,b):
     try:
         p = 1/(1+math.exp(d*(b-theta)))
     except:
-        print type(b),type(theta)
+        print(type(b),type(theta))
     return p
 
 #   2-parameter logit function

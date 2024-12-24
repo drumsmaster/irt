@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from scipy import stats
-from models import *
+from irt.models import *
 
 def showPersonRespCurve(personResponse, personParams, itemsParams, model='1PL', pointsPerBin=5, minBinWidth=0.5):
 
@@ -53,8 +53,12 @@ def showPersonRespCurve(personResponse, personParams, itemsParams, model='1PL', 
 
     return
 
-def showItemRespCurve(itemResponse, itemParams, personsParams, model='1PL', pointsPerBin=5,minBinWidth=0.5):
+def showItemRespCurve(itemResponse, itemParams, personsParams, model='1PL', pointsPerBin=5,minBinWidth=0.5,word=''):
 
+    if len(itemResponse) == 0:
+        print('['+word+']'+'There are no responses, cannot show item response curve')
+        return
+    
     #   prepare histogram
     indThetas = []
     indResponses = []
@@ -64,6 +68,7 @@ def showItemRespCurve(itemResponse, itemParams, personsParams, model='1PL', poin
             indResponses.append(itemResponse[personID])
         except:
             pass
+   
     hist = adaptHist(indThetas,indResponses)
     binsTheta = hist['binsDataAvgX']
     binsResponseObserved = hist['binsDataAvgY']
@@ -87,27 +92,36 @@ def showItemRespCurve(itemResponse, itemParams, personsParams, model='1PL', poin
         irtParamNum = 2
     q1,p = getQ1(stdResiduals,irtParamNum)
 
+    # calculate outfit and infit
+    qual = getItemQuality(itemResponse, itemParams, personsParams)
+
     #   prepare ICC figure caption
     if model == '1PL':
         itemParamsString = 'b = {:.2f}'.format(itemParams['b'])
     elif model == '2PL':
         itemParamsString = 'b = {:.2f}, a = {:.2f}'.format(itemParams['b'],itemParams['a'])
 
-    #   visualize
-    plt.figure(num=1,figsize=(12,6))
-    plt.subplot(121)    #   plot item characteristic curve
-    plt.plot(binsTheta,binsResponseExpected) #   expected probabilities
-    plt.plot(binsTheta,binsResponseObserved,'bo') #   observed probabilities
-    plt.plot(indThetas,indResponses,'bx')   #   individual responses
-    plt.ylabel('Probability of correct response')
-    plt.xlabel('theta')
-    plt.title('Item response curve (' + itemParamsString + ')')
-    plt.subplot(122)    #   plot standardized residuals
-    plt.plot(binsTheta,stdResiduals,'ro')
-    plt.ylabel('Standardized residual')
-    plt.xlabel('theta')
-    plt.title('Standardized residual plot (Q1={:.2f}, p={:.2f})'.format(q1,p))
-    plt.show()
+    # #   visualize
+    # plt.figure(num=1,figsize=(20,6))
+    # plt.subplot(121)    #   plot item characteristic curve
+    # plt.plot(binsTheta,binsResponseExpected, label='Expected probability') #   expected probabilities
+    # plt.errorbar(binsTheta,binsResponseObserved,yerr=hist['binsDataYAvgSEM'],fmt='bs', label='Observed probability') #   observed probabilities with standard error of the mean as errorbars
+    # plt.plot(indThetas,indResponses,'k.', label='Individual results')   #   individual responses
+    # plt.ylabel('Probability of correct response')
+    # plt.xlabel('Ability, logit')
+    # plt.title('['+ word + '] Item response curve (' + itemParamsString + ')')
+    # plt.legend()
+    # plt.subplot(122)    #   plot standardized residuals
+    # plt.plot(binsTheta,stdResiduals,'ro')
+    # plt.ylabel('Standardized residual')
+    # plt.xlabel('Ability, logit')
+    # plt.title('Standardized residual plot (Q1={:.2f}, p={:.2f}), outfit={:.2f}, infit={:.2f}'.format(q1,p,qual['outfit'],qual['infit']))
+    # # plt.show()
+    # base_path = '/Users/grigorygolovin/Library/CloudStorage/OneDrive-Personal/Projects/word stock estimation/Myvocab stats/item_stats/'
+    # file_name = base_path + word + '.png'
+    # print(file_name)
+    # plt.savefig(file_name, bbox_inches='tight')
+    # plt.close()
 
     return
 
@@ -126,6 +140,7 @@ def adaptHist(x,y,pointsPerBin=5,minBinWidth=0.5):
 
     binsDataX = []
     binsDataY = []
+    binsDataYAvgSEM = []
     binsDataAvgX = []
     binsDataAvgY = []
     binsWidth = []
@@ -143,6 +158,7 @@ def adaptHist(x,y,pointsPerBin=5,minBinWidth=0.5):
             binsWidth.append(curBinWidth)
             binsDataAvgX.append(numpy.mean(binsDataX[curBin]))
             binsDataAvgY.append(numpy.mean(binsDataY[curBin]))
+            binsDataYAvgSEM.append(numpy.std(binsDataY[curBin], ddof=1) / numpy.sqrt(numpy.size(binsDataY[curBin])))
             binsCount.append(pointsInCurrentBin)
             binsDataX.append([])
             binsDataY.append([])
@@ -161,7 +177,7 @@ def adaptHist(x,y,pointsPerBin=5,minBinWidth=0.5):
     del binsDataY[-1]
 
     return {'binsDataAvgX':binsDataAvgX,'binsDataAvgY':binsDataAvgY,'binsCount':binsCount,
-            'binsWidth':binsWidth,'binsDataX':binsDataX,'binsDataY':binsDataY}
+            'binsWidth':binsWidth,'binsDataX':binsDataX,'binsDataY':binsDataY,'binsDataYAvgSEM':binsDataYAvgSEM}
 
 #   calculate std residuals based on binned data
 def residuals(observedY,expectedY,counts):
@@ -179,6 +195,42 @@ def getQ1(stdResiduals,irtParamNum):
     p = 1 - stats.chi2.cdf(q1, len(stdResiduals) - irtParamNum)  #   p-value associated with Q1 statistic (chi-squared)
     return q1,p
 
+# calculate item quality based on residuals: outfit and infit
+# see 10.1 in https://www.edmeasurementsurveys.com/residual-based-item-fit-statistics.html#redisual-based-item-fit-statistics
+# 1PL model only for now
+# trim_val: Whenever a squared standardised residual is larger than trim_val, it is set to trim_val
+def getItemQuality(itemResponse, itemParams, personsParams, trim_val = 10):
+
+    ui = 0 # unweighted mean fit square, outfit
+    vi = 0 # weighted mean fit square, infit
+    vi_top = 0 # temparary for infit
+    vi_bottom = 0 # temparary for infit
+
+    for personID in itemResponse:
+        xni = itemResponse[personID] # observed response of person n on item i
+        eni = prob1PL(personsParams[personID]['theta'],itemParams['b']) # expected value of Xni
+        wni = eni*(1-eni) # variance of Xni
+        zni = (xni-eni)/math.sqrt(wni) # standartized residual statistic
+        if zni > trim_val:
+            zni = trim_val
+
+        ui += zni*zni
+        vi_top += wni*zni*zni
+        vi_bottom += wni
+    
+    ui = ui/len(itemResponse)
+    vi = vi_top/vi_bottom
+
+    ui_sd = math.sqrt(2.0/len(itemResponse)) # asymptotic standard error for outfit
+    ui_max = 1 + 2*ui_sd # top range for acceptable outfit
+    ui_min = 1 - 2*ui_sd # bottom range for acceptable outfit
+
+    return {'outfit':ui,
+            'outfit_max_ac':ui_max,
+            'outfit_min_ac':ui_min,
+            'infit':vi,
+            'person_number':len(itemResponse)}
+
 #   calculate Q1-statistics for an item
 def getItemQ1(itemResponse, itemParams, personsParams, model='1PL', pointsPerBin=5,minBinWidth=0.5):
 
@@ -191,6 +243,7 @@ def getItemQ1(itemResponse, itemParams, personsParams, model='1PL', pointsPerBin
             indResponses.append(itemResponse[personID])
         except:
             pass
+    
     hist = adaptHist(indThetas,indResponses)
     binsTheta = hist['binsDataAvgX']
     binsResponseObserved = hist['binsDataAvgY']
@@ -204,7 +257,7 @@ def getItemQ1(itemResponse, itemParams, personsParams, model='1PL', pointsPerBin
             prob = prob2PL(theta,itemParams['a'],itemParams['b'])
         binsResponseExpected.append(prob)
         if prob == 0 or prob == 1:
-            print 'fuck',itemParams
+            print('fuck',itemParams)
 
     #   prepare residuals
     stdResiduals = residuals(binsResponseObserved,binsResponseExpected,hist['binsCount'])
@@ -214,6 +267,8 @@ def getItemQ1(itemResponse, itemParams, personsParams, model='1PL', pointsPerBin
         irtParamNum = 1
     elif model == '2PL':
         irtParamNum = 2
+
+    # print(getItemQuality(itemResponse, itemParams, personsParams))
 
     return getQ1(stdResiduals,irtParamNum)
 

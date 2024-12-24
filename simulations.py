@@ -8,8 +8,8 @@ import timeit
 
 #   simulate user response to study quality of item set
 #   plots estimated theta vs real ones
-itemsParamsFilename = 'items_est.txt' #'items50000_a1.txt'
-itemSetFilename = 'items_est.txt'
+itemsParamsFilename = '/Users/grigorygolovin/Library/CloudStorage/OneDrive-Personal/Projects/word stock estimation/old/websctest/local/irt/items_est.txt' #'items50000_a1.txt'
+itemSetFilename = '/Users/grigorygolovin/Library/CloudStorage/OneDrive-Personal/Projects/word stock estimation/old/websctest/local/irt/items_est.txt'
 simNumPerTheta = 100
 model = '1PL'
 thetaStepsEAP = 50
@@ -36,7 +36,7 @@ f.close()
 #   check that all needed item parameters available
 for itemID in itemSet:
     if itemID not in itemsParams:
-        print 'Item missing: ' + itemID
+        print('Item missing: ' + itemID)
 
 #   estimate person ability
 thetaEstArray = []
