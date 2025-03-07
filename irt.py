@@ -124,8 +124,8 @@ def readTable(filename,correctSymbol='1',incorrectSymbol='0',linesNum=-1):
 
 #   estimate person abilities and item parameters jointly
 #   joint maximum likelihood
-def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b':(-6,6),'theta':(-6,6)},
-                             steps={'theta':20,'a':20,'b':20}, precisions={'theta':0.05,'a':0.05,'b':0.05},
+def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b':(-10,10),'theta':(-10,10)},
+                             steps={'theta':25,'a':25,'b':25}, precisions={'theta':0.1,'a':0.1,'b':0.1},
                              priorMean={'a':1.7,'b':0,'theta':0}, priorSigma={'a':1,'b':2,'theta':2},
                              minRanges={'theta':2,'a':1,'b':2},skip=True,itemsInitialGuess={},personsInitialGuess={}):
 
