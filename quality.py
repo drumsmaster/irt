@@ -5,8 +5,10 @@ import numpy
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import pandas as pd
 from scipy import stats
 from irt.models import *
+import os
 
 def showPersonRespCurve(personResponse, personParams, itemsParams, model='1PL', pointsPerBin=5, minBinWidth=0.5):
 
@@ -117,11 +119,13 @@ def showItemRespCurve(itemResponse, itemParams, personsParams, model='1PL', poin
     # plt.xlabel('Ability, logit')
     # plt.title('Standardized residual plot (Q1={:.2f}, p={:.2f}), outfit={:.2f}, infit={:.2f}'.format(q1,p,qual['outfit'],qual['infit']))
     # # plt.show()
-    # base_path = '/Users/grigorygolovin/Library/CloudStorage/OneDrive-Personal/Projects/word stock estimation/Myvocab stats/item_stats/'
+    # base_path = '/Users/grigorygolovin/Library/CloudStorage/OneDrive-Personal/Projects/word stock estimation/Myvocab stats/item_stats_en/'
     # file_name = base_path + word + '.png'
     # print(file_name)
+    # os.makedirs(base_path, exist_ok=True)
     # plt.savefig(file_name, bbox_inches='tight')
     # plt.close()
+    # # end visualization section
 
     return
 
@@ -321,9 +325,17 @@ def showLikelihood(theta,personResponses,itemsParams,model):
     plt.grid()
     plt.show()
 
-def showTestInfo(itemsParams,itemSet,model):
-    minTheta = -5
-    maxTheta = 5
+def showTestInfo(itemsParams,
+                 itemSet,
+                 model='1PL',
+                 minTheta=-12,
+                 maxTheta=12):
+    
+    # parameter validation
+    if model not in ['1PL','2PL']:
+        raise ValueError('Model should be 1PL or 2PL')
+    
+    # start
     thetaSteps = 100
     thetaArray = numpy.linspace(minTheta,maxTheta,thetaSteps)
     infoArray = []
@@ -349,18 +361,97 @@ def showTestInfo(itemsParams,itemSet,model):
     #   visualize
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
-    ax1.plot(thetaArray, infoArray, 'g-')
+    # ax1.plot(thetaArray, infoArray, 'g-')
     ax2.plot(thetaArray, semArray, 'b-')
 
-    ax2.scatter(itemSetDifficulties,[1]*len(itemSetDifficulties))
+    # ax2.scatter(itemSetDifficulties,[1]*len(itemSetDifficulties))
+    ax1.hist(itemSetDifficulties, bins=30, alpha=0.6, color="orange", edgecolor="black")
+    ax1.set_ylabel("Item number", color="orange")
 
-    ax1.set_xlabel(u'Словарный запас респондента, логит')
-    ax1.set_ylabel(u'Информация', color='g')
-    ax2.set_ylabel(u'Стандартная ошибка, логит', color='b')
-    plt.xlim([-5,5])
+    ax1.set_xlabel('Ability (logit)')
+    # ax1.set_ylabel('Information', color='g')
+    ax2.set_ylabel(u'Standard Error of Measurement (logit)', color='b')
+    plt.xlim([minTheta,maxTheta])
 
-    plt.title(u'Информация и стандартная ошибка теста')
+    plt.title('Item bank quality')
     plt.grid()
+    plt.show()
+
+def item_person_map(persons_filepath:str,
+                    items_filepath:str,
+                    bins:int = 15):
+    '''Display item-person map (Wright map)'''
+
+    # Load data
+    persons_df = pd.read_csv(persons_filepath,delimiter='\t')
+    items_df = pd.read_csv(items_filepath,delimiter='\t')
+
+    # Optional: filter out items with totalResponses == 0
+    if 'totalResponses' in items_df.columns:
+        items_df = items_df[items_df['totalResponses'] > 0]
+
+    # Extract relevant columns
+    item_b = items_df['b'].dropna()
+    person_theta = persons_df['theta'].dropna()
+
+    # Create figure and axes
+    fig, (ax_left, ax_right) = plt.subplots(
+        ncols=2,
+        sharey=True,
+        figsize=(10, 4),
+        gridspec_kw={'width_ratios': [1, 1]}
+    )
+
+    # Plot left histogram (Persons) horizontally
+    ax_left.hist(
+        person_theta,
+        bins=bins,
+        orientation='horizontal',
+        color='skyblue',
+        edgecolor='black'
+    )
+    # Invert x-axis so bars grow to the left
+    ax_left.invert_xaxis()
+
+    # Show left y‑axis ticks & labels
+    ax_left.tick_params(
+        axis='y',
+        which='both',
+        left=True,
+        labelleft=True
+    )
+    ax_left.set_xlabel('Persons')
+    ax_left.set_title('Person Distribution')
+    ax_left.set_ylabel('Logit Scale (Ability | Difficulty)')
+    ax_left.yaxis.set_visible(True)
+
+    # Plot right histogram (Items) horizontally
+    ax_right.hist(
+        item_b,
+        bins=bins,
+        orientation='horizontal',
+        color='salmon',
+        edgecolor='black'
+    )
+
+    # Show y‑axis scale on the right
+    ax_right.yaxis.set_visible(False)
+    ax_right.yaxis.set_label_position("right")
+    ax_right.yaxis.tick_right()
+    ax_right.tick_params(
+        axis='y',
+        which='both',
+        right=True,
+        left=False,
+        labelright=True,
+        labelleft=False
+    )
+    ax_right.set_ylabel('Logit Scale (Ability | Difficulty)')
+    ax_right.set_xlabel('Items')
+    ax_right.set_title('Item Distribution')
+
+    # Adjust spacing and display
+    plt.tight_layout()
     plt.show()
 
     

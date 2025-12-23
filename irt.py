@@ -10,7 +10,9 @@ import random
 import pprint
 import sys
 
+###################################################
 #   data structures
+###################################################
 #       persons = {personID1:personResponses1,...}
 #       personResponses = {itemID1:response,...}
 #       response = int (0/1)
@@ -20,34 +22,92 @@ import sys
 #       itemsParams = {itemID1:itemParams1,...}
 #       itemParams = {'b':float,'bSD':float,'a':float,'aSD':float}
 
-#   estimate person latent ability based on a set of items
-def getPersonAbility(person, itemsParams, model='1PL',method='EAP',
-                     thetaRange=(-5,5), thetaSteps=10,
-                     priorMean = 0, priorSigma = 2):
 
-    #   expected a posteriori (EAP) method
-    if method == 'EAP':
+# #   estimate person latent ability based on a set of items
+# def getPersonAbility(person, itemsParams, model='1PL',method='EAP',
+#                      thetaRange=(-12,12), thetaSteps=50,
+#                      priorMean = 0, priorSigma = 3):
+
+#     #   expected a posteriori (EAP) method
+#     if method == 'EAP':
+#         thetaArray = numpy.linspace(thetaRange[0], thetaRange[1], thetaSteps)
+#         wLLArray = numpy.zeros(len(thetaArray)) # weighted likelihood array
+#         for i in range(thetaSteps):
+#             theta = thetaArray[i]
+#             wLLArray[i] = personIterLikelihood(model,theta,person,itemsParams) *\
+#                 gauss(theta,priorMean,priorSigma)
+#         wLLArraySum = sum(wLLArray)
+#         if wLLArraySum == 0:
+#             raise ValueError('getPersonParams: weighted likelihood array is all zeroes')
+#         theta = sum(thetaArray * wLLArray) / wLLArraySum
+#         thetaSD = math.sqrt(sum(pow(thetaArray-theta,2) * wLLArray) / wLLArraySum)
+#         return theta,thetaSD
+
+#     #
+#     if method == 'MAP':
+#         pass
+
+
+#   estimate person latent ability based on a set of items (robust version)
+def getPersonAbility(personResponses, itemsParams, model='1PL', method='EAP',
+                     thetaRange=(-12,12), thetaSteps=50,
+                     priorMean=0, priorSigma=3,
+                     robust=False, huber_c=0.5):
+
+    # ---- helper: one-pass (possibly weighted) EAP ----
+    def eap_once(personResponses, itemsParams, weights=None):
         thetaArray = numpy.linspace(thetaRange[0], thetaRange[1], thetaSteps)
-        wLLArray = numpy.zeros(len(thetaArray)) # weighted likelihood array
-        for i in range(thetaSteps):
-            theta = thetaArray[i]
-            wLLArray[i] = personIterLikelihood(model,theta,person,itemsParams) *\
-                gauss(theta,priorMean,priorSigma)
-        wLLArraySum = sum(wLLArray)
-        if wLLArraySum == 0:
-            raise ValueError('getPersonParams: weighted likelihood array is all zeroes')
-        theta = sum(thetaArray * wLLArray) / wLLArraySum
-        thetaSD = math.sqrt(sum(pow(thetaArray-theta,2) * wLLArray) / wLLArraySum)
-        return theta,thetaSD
+        wLLArray = numpy.zeros(len(thetaArray))  # weighted likelihood array
 
-    #
+        for i, theta in enumerate(thetaArray):
+            # likelihood * prior
+            ll = personIterLikelihood(model, theta, personResponses, itemsParams, weights=weights)
+            wLLArray[i] = ll * gauss(theta, priorMean, priorSigma)
+
+        wLLArraySum = wLLArray.sum()
+        if wLLArraySum == 0:
+            raise ValueError('getPersonAbility: weighted likelihood array is all zeroes')
+
+        theta_hat = (thetaArray * wLLArray).sum() / wLLArraySum
+        thetaSD = numpy.sqrt(((thetaArray - theta_hat) ** 2 * wLLArray).sum() / wLLArraySum)
+        return theta_hat, thetaSD
+
+    # ----------------- non-robust EAP -----------------
+    if method == 'EAP' and not robust:
+        return eap_once(personResponses, itemsParams, weights=None)
+
+    # ----------------- robust EAP ---------------------
+    if method == 'EAP' and robust:
+        # Pass 1: standard EAP
+        theta_tilde, thetaSD = eap_once(personResponses, itemsParams, weights=None)
+
+        # Compute residuals + Huber weights
+        weights = {}
+        for itemID, response in personResponses.items():
+            b = itemsParams[itemID]['b']
+            if model == '1PL':
+                p = prob1PL(theta_tilde, b)
+            elif model == '2PL':
+                a = itemsParams[itemID]['a']
+                p = prob2PL(theta_tilde, a, b)
+            else:
+                raise ValueError(f"Unknown model: {model}")
+
+            residual = response - p  # u_i - P_i(theta_tilde)
+            weights[itemID] = huber_weight(residual, c=huber_c)
+
+        # Pass 2: robust EAP using weighted likelihood
+        theta_hat, thetaSD_hat = eap_once(personResponses, itemsParams, weights=weights)
+        return theta_hat, thetaSD_hat
+
     if method == 'MAP':
-        pass
+        raise NotImplementedError("MAP not implemented yet")
+
 
 #   estimate item parameters based on a set of persons responses
 def getItemParams(item, personsParams, method='EAP', model='1PL',
-                  itemRange={'a':(0, 2), 'b':(-5, 5)}, itemSteps={'a':5, 'b':10},
-                  priorMean={'a':1,'b':0}, priorSigma={'a':1,'b':2}):
+                  itemRange={'a':(0, 2), 'b':(-12, 12)}, itemSteps={'a':5, 'b':20},
+                  priorMean={'a':1,'b':0}, priorSigma={'a':1,'b':3}):
 
     #   expected a posteriori (EAP) method
     if method == 'EAP':
@@ -124,10 +184,19 @@ def readTable(filename,correctSymbol='1',incorrectSymbol='0',linesNum=-1):
 
 #   estimate person abilities and item parameters jointly
 #   joint maximum likelihood
-def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b':(-10,10),'theta':(-10,10)},
-                             steps={'theta':25,'a':25,'b':25}, precisions={'theta':0.1,'a':0.1,'b':0.1},
-                             priorMean={'a':1.7,'b':0,'theta':0}, priorSigma={'a':1,'b':2,'theta':2},
-                             minRanges={'theta':2,'a':1,'b':2},skip=True,itemsInitialGuess={},personsInitialGuess={}):
+def getItemPersonJointParams(persons,
+                             items,
+                             model='1PL',
+                             ranges={'a':(0.1,3),'b':(-12,12),'theta':(-12,12)},
+                             steps={'theta':25,'a':25,'b':25},
+                             precisions={'theta':0.1,'a':0.1,'b':0.1},
+                             priorMean={'a':1.7,'b':0,'theta':0},
+                             priorSigma={'a':1,'b':3,'theta':3},
+                             minRanges={'theta':2,'a':1,'b':2},
+                             skip=True,
+                             itemsInitialGuess={},
+                             personsInitialGuess={},
+                             min_responses=0):
 
     #   prepare persons parameters initial guess
     personsParams = {}
@@ -158,14 +227,23 @@ def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b
     for itemID in items.keys():
         correctResponses = sum(items[itemID].values())
         totalResponses = len(items[itemID].values())
-        if correctResponses == totalResponses:
+        if totalResponses < min_responses:
+            # remove this item, too few responses
             b = ranges['b'][0]
             badItems[itemID] = {}
-        elif correctResponses == 0:
-            b = ranges['b'][1]
-            badItems[itemID] = {}
         else:
-            b = math.log((totalResponses-correctResponses)/correctResponses)
+            # there are enough responses
+            if correctResponses == totalResponses:
+                # all responses are correct, eliminate this item
+                b = ranges['b'][0]
+                badItems[itemID] = {}
+            elif correctResponses == 0:
+                # all responses are incorrect, eliminate this item
+                b = ranges['b'][1]
+                badItems[itemID] = {}
+            else:
+                # there is a mix of correct/incorrect responses
+                b = math.log((totalResponses-correctResponses)/correctResponses)
         if itemID in itemsInitialGuess.keys():
             b = itemsInitialGuess[itemID]['b']
         itemsParams[itemID] = {'b':b,'bSD':priorSigma['b'],'a':priorMean['a'],
@@ -176,7 +254,7 @@ def getItemPersonJointParams(persons, items, model='1PL', ranges={'a':(0.1,3),'b
     for itemID in badItems.keys():
         badItems[itemID] = itemsParams[itemID]
         delItem(itemID, persons, items, itemsParams)
-    print('Check for items with negative/positive responses only: {:d} items deleted'.format(len(badItems.keys())))
+    print('Check for items with not enough responses, and for negative/positive responses only: {:d} items deleted'.format(len(badItems.keys())))
 
     # iterate until convergence is met
     iterFull = 1    #   loops with no elements skipped

@@ -4,6 +4,18 @@ import math
 
 #   probabilities, likelihoods, and other supplementary functions
 
+def huber_weight(residual, c=0.5):
+    '''
+    Huber weights for robust estimation
+    c = 0.5 is default
+    smaller c mean stronger effect of weighting, so outliers get dampened more
+    '''
+    r = abs(residual)
+    if r <= c:
+        return 1.0
+    else:
+        return c / r  # down-weight outliers
+
 #   gaussian distribution
 def gauss(x,mean,sigma):
     return 1./math.sqrt(2*math.pi)*math.exp(-math.pow((x-mean)/sigma,2)/2)
@@ -53,11 +65,23 @@ def logLL(model,theta,itemParams,response):
 
     return ll
 
-#   iterate through items in a person's response
-def personIterLikelihood(model,theta,personResponses,itemsParams):
-    ll = 1.
-    for itemID in personResponses.keys():
-        ll *= likelihood(model,theta,itemsParams[itemID],personResponses[itemID])
+# #   iterate through items in a person's response
+# def personIterLikelihood(model,theta,personResponses,itemsParams):
+#     ll = 1.
+#     for itemID in personResponses.keys():
+#         ll *= likelihood(model,theta,itemsParams[itemID],personResponses[itemID])
+#     return ll
+
+#   iterate through items in a person's response (robust version)
+def personIterLikelihood(model, theta, personResponses, itemsParams, weights=None):
+    ll = 1.0
+    for itemID, response in personResponses.items():
+        li = likelihood(model, theta, itemsParams[itemID], response)
+        if weights is not None:
+            w = weights.get(itemID, 1.0) # return weights[itemID] if the key exists, otherwise return 1
+            # robust likelihood: L_i(theta)^w_i
+            li = li ** w
+        ll *= li
     return ll
 
 #   iterate through persons in an item's response
