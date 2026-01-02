@@ -390,6 +390,9 @@ def item_person_map(persons_filepath:str,
     if 'totalResponses' in items_df.columns:
         items_df = items_df[items_df['totalResponses'] > 0]
 
+    # do not show fake words
+    items_df = items_df[items_df['type'].isin(['yn','mc'])]
+
     # Extract relevant columns
     item_b = items_df['b'].dropna()
     person_theta = persons_df['theta'].dropna()

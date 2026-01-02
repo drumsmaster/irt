@@ -196,7 +196,7 @@ def getItemPersonJointParams(persons,
                              skip=True,
                              itemsInitialGuess={},
                              personsInitialGuess={},
-                             min_responses=0):
+                             min_responses=2):
 
     #   prepare persons parameters initial guess
     personsParams = {}
