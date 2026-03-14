@@ -23,8 +23,9 @@ def gauss(x,mean,sigma):
 # def logGauss(x,mean,sigma):
 #     return
 
-#   1-parameter logit function
+
 def prob1PL(theta,b):
+    '''1-parameter logit function'''
     d = 1. #   log/ogive coefficient
     try:
         p = 1/(1+math.exp(d*(b-theta)))
@@ -32,8 +33,9 @@ def prob1PL(theta,b):
         print(type(b),type(theta))
     return p
 
-#   2-parameter logit function
+
 def prob2PL(theta,a,b):
+    '''2-parameter logit function'''
     d = 1. #   log/ogive coefficient
     return 1/(1+math.exp(d*a*(b-theta)))
 
@@ -72,8 +74,9 @@ def logLL(model,theta,itemParams,response):
 #         ll *= likelihood(model,theta,itemsParams[itemID],personResponses[itemID])
 #     return ll
 
-#   iterate through items in a person's response (robust version)
+
 def personIterLikelihood(model, theta, personResponses, itemsParams, weights=None):
+    '''iterate through items in a person's response (robust version)'''
     ll = 1.0
     for itemID, response in personResponses.items():
         li = likelihood(model, theta, itemsParams[itemID], response)

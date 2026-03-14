@@ -48,38 +48,175 @@ import sys
 #         pass
 
 
-#   estimate person latent ability based on a set of items (robust version)
-def getPersonAbility(personResponses, itemsParams, model='1PL', method='EAP',
-                     thetaRange=(-12,12), thetaSteps=50,
-                     priorMean=0, priorSigma=3,
-                     robust=False, huber_c=0.5):
 
-    # ---- helper: one-pass (possibly weighted) EAP ----
+def getPersonAbility(personResponses, itemsParams, model='1PL', method='EAP',
+                     thetaRange=(-12, 12), thetaSteps=50,
+                     priorMean=0, priorSigma=3,
+                     robust=False, huber_c=0.5,
+                     # MLE config (Newton)
+                     newton_max_iter=50, newton_tol=1e-6, step_clip=2.0):
+    '''Estimate person latent ability based on a set of items (robust version)
+       Supported methods: EAP, MAP, MLE
+    '''
+
+    # --------------------------
+    # Helpers: posterior on grid
+    # --------------------------
     def eap_once(personResponses, itemsParams, weights=None):
         thetaArray = numpy.linspace(thetaRange[0], thetaRange[1], thetaSteps)
-        wLLArray = numpy.zeros(len(thetaArray))  # weighted likelihood array
+        postArray = numpy.zeros(len(thetaArray))  # unnormalized posterior
 
         for i, theta in enumerate(thetaArray):
-            # likelihood * prior
             ll = personIterLikelihood(model, theta, personResponses, itemsParams, weights=weights)
-            wLLArray[i] = ll * gauss(theta, priorMean, priorSigma)
+            postArray[i] = ll * gauss(theta, priorMean, priorSigma)
 
-        wLLArraySum = wLLArray.sum()
-        if wLLArraySum == 0:
-            raise ValueError('getPersonAbility: weighted likelihood array is all zeroes')
+        s = postArray.sum()
+        if s == 0:
+            raise ValueError('getPersonAbility: posterior array is all zeroes')
 
-        theta_hat = (thetaArray * wLLArray).sum() / wLLArraySum
-        thetaSD = numpy.sqrt(((thetaArray - theta_hat) ** 2 * wLLArray).sum() / wLLArraySum)
+        theta_hat = (thetaArray * postArray).sum() / s
+        thetaSD = numpy.sqrt(((thetaArray - theta_hat) ** 2 * postArray).sum() / s)
+        return float(theta_hat), float(thetaSD)
+
+    def map_once(personResponses, itemsParams, weights=None):
+        thetaArray = numpy.linspace(thetaRange[0], thetaRange[1], thetaSteps)
+        postArray = numpy.zeros(len(thetaArray))  # unnormalized posterior
+
+        for i, theta in enumerate(thetaArray):
+            ll = personIterLikelihood(model, theta, personResponses, itemsParams, weights=weights)
+            postArray[i] = ll * gauss(theta, priorMean, priorSigma)
+
+        if postArray.max() == 0:
+            raise ValueError('getPersonAbility: posterior array is all zeroes')
+
+        i_max = int(postArray.argmax())
+        theta_hat = float(thetaArray[i_max])
+
+        s = postArray.sum()
+        if s == 0:
+            raise ValueError('getPersonAbility: posterior array sum is zero')
+
+        thetaSD = float(numpy.sqrt(((thetaArray - theta_hat) ** 2 * postArray).sum() / s))
         return theta_hat, thetaSD
 
-    # ----------------- non-robust EAP -----------------
+    # ----------------------------------------
+    # MLE via Newton on (weighted) log-lik
+    # ----------------------------------------
+    def _p(theta, itemParams):
+        b = itemParams['b']
+        if model == '1PL':
+            return prob1PL(theta, b), 1.0
+        elif model == '2PL':
+            a = itemParams['a']
+            return prob2PL(theta, a, b), float(a)
+        else:
+            raise ValueError(f"Unknown model: {model}")
+
+    def mle_once(personResponses, itemsParams, weights=None):
+        # Handle extreme patterns (unbounded MLE is +/- inf; bounded -> boundary)
+        u_sum = 0
+        n = 0
+        for _, u in personResponses.items():
+            u_sum += int(u)
+            n += 1
+        if n == 0:
+            raise ValueError("getPersonAbility: empty personResponses")
+
+        if u_sum == 0:
+            return float(thetaRange[0]), float('inf')
+        if u_sum == n:
+            return float(thetaRange[1]), float('inf')
+
+        # Initial guess: mid-point (or priorMean if you prefer)
+        theta = float(max(thetaRange[0], min(thetaRange[1], priorMean)))
+
+        # Newton iterations
+        for _ in range(newton_max_iter):
+            grad = 0.0
+            hess = 0.0
+
+            for itemID, u in personResponses.items():
+                item = itemsParams[itemID]
+                p, a = _p(theta, item)
+
+                # Safety: keep p away from 0/1
+                p = min(1.0 - 1e-12, max(1e-12, p))
+
+                w = 1.0
+                if weights is not None:
+                    w = float(weights.get(itemID, 1.0))
+
+                # Log-likelihood contribution: u*log(p) + (1-u)*log(1-p)
+                # Gradient: a*(u - p)
+                # Hessian: -a^2 * p*(1-p)
+                grad += w * (a * (u - p))
+                hess += w * (-(a * a) * p * (1.0 - p))
+
+            # If information is essentially zero, can't Newton-step reliably.
+            if abs(hess) < 1e-12:
+                break
+
+            step = grad / hess  # hess negative; this moves uphill
+            # Clip step to avoid wild jumps
+            if step > step_clip:
+                step = step_clip
+            elif step < -step_clip:
+                step = -step_clip
+
+            theta_new = theta - step  # because step = grad/hess; ascent uses theta - grad/hess
+
+            # Project into bounds
+            if theta_new < thetaRange[0]:
+                theta_new = float(thetaRange[0])
+            elif theta_new > thetaRange[1]:
+                theta_new = float(thetaRange[1])
+
+            if abs(theta_new - theta) < newton_tol:
+                theta = theta_new
+                break
+
+            theta = theta_new
+
+        # Approx SE from observed information at final theta (if possible)
+        info = 0.0
+        for itemID, u in personResponses.items():
+            item = itemsParams[itemID]
+            p, a = _p(theta, item)
+            p = min(1.0 - 1e-12, max(1e-12, p))
+
+            w = 1.0
+            if weights is not None:
+                w = float(weights.get(itemID, 1.0))
+
+            info += w * ((a * a) * p * (1.0 - p))
+
+        se = float('inf') if info <= 1e-12 else float(1.0 / math.sqrt(info))
+        return float(theta), se
+
+    # -----------------------------
+    # Non-robust paths
+    # -----------------------------
     if method == 'EAP' and not robust:
         return eap_once(personResponses, itemsParams, weights=None)
 
-    # ----------------- robust EAP ---------------------
-    if method == 'EAP' and robust:
-        # Pass 1: standard EAP
-        theta_tilde, thetaSD = eap_once(personResponses, itemsParams, weights=None)
+    if method == 'MAP' and not robust:
+        return map_once(personResponses, itemsParams, weights=None)
+
+    if method == 'MLE' and not robust:
+        return mle_once(personResponses, itemsParams, weights=None)
+
+    # -----------------------------
+    # Robust two-pass for EAP/MAP/MLE
+    # -----------------------------
+    if robust and method in ('EAP', 'MAP', 'MLE'):
+
+        # Pass 1: initial estimate (non-robust)
+        if method == 'EAP':
+            theta_tilde, _ = eap_once(personResponses, itemsParams, weights=None)
+        elif method == 'MAP':
+            theta_tilde, _ = map_once(personResponses, itemsParams, weights=None)
+        else:  # MLE
+            theta_tilde, _ = mle_once(personResponses, itemsParams, weights=None)
 
         # Compute residuals + Huber weights
         weights = {}
@@ -93,15 +230,18 @@ def getPersonAbility(personResponses, itemsParams, model='1PL', method='EAP',
             else:
                 raise ValueError(f"Unknown model: {model}")
 
-            residual = response - p  # u_i - P_i(theta_tilde)
+            residual = response - p
             weights[itemID] = huber_weight(residual, c=huber_c)
 
-        # Pass 2: robust EAP using weighted likelihood
-        theta_hat, thetaSD_hat = eap_once(personResponses, itemsParams, weights=weights)
-        return theta_hat, thetaSD_hat
+        # Pass 2: robust estimate
+        if method == 'EAP':
+            return eap_once(personResponses, itemsParams, weights=weights)
+        elif method == 'MAP':
+            return map_once(personResponses, itemsParams, weights=weights)
+        else:  # MLE
+            return mle_once(personResponses, itemsParams, weights=weights)
 
-    if method == 'MAP':
-        raise NotImplementedError("MAP not implemented yet")
+    raise ValueError(f"Unknown method: {method}")
 
 
 #   estimate item parameters based on a set of persons responses
@@ -144,8 +284,9 @@ def getItemParams(item, personsParams, method='EAP', model='1PL',
             aSD = math.sqrt( sum(sum(pow(aArray-a,2) * wLLArray)) / wLLArraySum )
             return {'a':a,'aSD':aSD,'b':b,'bSD':bSD}
 
-#   read a table into two dictionaries: persons and items
+
 def readTable(filename,correctSymbol='1',incorrectSymbol='0',linesNum=-1):
+    '''Read a table into two dictionaries: persons and items'''
 
     #   fill persons dict
     persons = {}
@@ -191,7 +332,7 @@ def getItemPersonJointParams(persons,
                              steps={'theta':25,'a':25,'b':25},
                              precisions={'theta':0.1,'a':0.1,'b':0.1},
                              priorMean={'a':1.7,'b':0,'theta':0},
-                             priorSigma={'a':1,'b':3,'theta':3},
+                             priorSigma={'a':1,'b':6,'theta':6},
                              minRanges={'theta':2,'a':1,'b':2},
                              skip=True,
                              itemsInitialGuess={},
@@ -260,7 +401,7 @@ def getItemPersonJointParams(persons,
     iterFull = 1    #   loops with no elements skipped
     iterSub = 1     #   loops with some elements skipped
     while True:
-        print('Iteration # {}/{}'.format(iterFull,iterSub))
+        # print('Iteration # {}/{}'.format(iterFull,iterSub))
         maxThetaDif = 0
         maxBDif = 0
         maxADif = 0
@@ -275,10 +416,15 @@ def getItemPersonJointParams(persons,
             thetaOldSD = personsParams[personID]['thetaSD']
             thetaRange = max([thetaOldSD*6,minRanges['theta']])
             try:
+                # theta,thetaSD = getPersonAbility(persons[personID], itemsParams, model, method='EAP',
+                #                                  thetaRange=(thetaOld-thetaRange/2, thetaOld+thetaRange/2),
+                #                                  thetaSteps=steps['theta'],
+                #                                  priorMean=thetaOld)
                 theta,thetaSD = getPersonAbility(persons[personID], itemsParams, model, method='EAP',
                                                  thetaRange=(thetaOld-thetaRange/2, thetaOld+thetaRange/2),
                                                  thetaSteps=steps['theta'],
-                                                 priorMean=thetaOld)
+                                                 priorMean=priorMean['theta'],
+                                                 priorSigma=priorSigma['theta'])
             except ValueError:
                 'Person error',personID
             thetaDif = math.fabs(thetaOld - theta)
@@ -301,9 +447,17 @@ def getItemPersonJointParams(persons,
                          'b':(itemParamsOld['b']-bRange/2,itemParamsOld['b']+bRange/2)}
             try:
                 upd(itemsParams[itemID],
-                    getItemParams(items[itemID], personsParams, method='EAP',
-                                  model=model,itemRange=itemRange,itemSteps=steps,
-                                  priorMean=itemParamsOld,priorSigma=priorSigma))
+                    # getItemParams(items[itemID], personsParams, method='EAP',
+                    #               model=model,itemRange=itemRange,itemSteps=steps,
+                    #               priorMean=itemParamsOld,priorSigma=priorSigma))
+                    getItemParams(items[itemID],
+                                  personsParams,
+                                  method='EAP',
+                                  model=model,
+                                  itemRange=itemRange,
+                                  itemSteps=steps,
+                                  priorMean={'b': priorMean['b'], 'a':priorMean['a']},
+                                  priorSigma={'b': priorSigma['b'], 'a':priorSigma['a']}))
             except ValueError:
                 'Item error',itemID
 
@@ -321,6 +475,8 @@ def getItemPersonJointParams(persons,
             #   if an item params do not change much, exclude it from further calculations
             if aDif < precisions['a'] and bDif < precisions['b']:
                 itemsParams[itemID]['converged?'] = True
+        
+        print('Iter [{:d}/{:d}]\tmax_theta_dif = {:.2f}\tmax_b_dif = {:.2f}\tmax_a_dif = {:.2f}\tSkipped: {:d}/{:d}'.format(iterFull,iterSub,maxThetaDif,maxBDif,maxADif,skipped,len(items)+len(persons)))
 
         #   if everything skipped, reset 'converged' field to iterate all elements again
         if (skipped == len(items) + len(persons)) and skip:
@@ -337,8 +493,6 @@ def getItemPersonJointParams(persons,
             iterSub = 1
 
         #   check convergence
-        print('max Theta dif = {:.2f}\tmax b dif = {:.2f}\tmax a dif = {:.2f}\tSkipped: {:d}/{:d}'.format(
-                maxThetaDif,maxBDif,maxADif,skipped,len(items)+len(persons)))
         if maxThetaDif < precisions['theta'] and maxBDif < precisions['b']\
                 and maxADif < precisions['a'] and skipped == 0:
             status = 'Precision level reached'
