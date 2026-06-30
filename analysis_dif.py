@@ -118,12 +118,16 @@ def dif(
     y = df[f"b_{B}"].to_numpy(dtype=float)
 
     # -------------------------
-    # Align scales: b_B ~= a*b_A + c
+    # Align scales: Rasch 1PL => additive shift only
+    # b_B ~= b_A + c
     # -------------------------
-    a, c = np.polyfit(x, y, 1)
+    a = 1.0  # kept for backward compatibility in outputs / summaries
+
+    # Median shift minimizes squared residuals when slope is fixed at 1.
+    c = float(np.median(y - x))
 
     pred_col = f"pred_{B}_from_{A}"
-    df[pred_col] = a * df[f"b_{A}"] + c
+    df[pred_col] = df[f"b_{A}"] + c
     df["resid"] = df[f"b_{B}"] - df[pred_col]
 
     sd_resid = float(df["resid"].std(ddof=1))
@@ -131,10 +135,10 @@ def dif(
         raise ValueError("Residual SD is invalid/too small; cannot standardize DIF.")
 
     # -------------------------
-    # Fit quality + association (requested additions)
+    # Fit quality + association
     # -------------------------
-    # R^2 for the alignment regression y ~ a*x + c
-    y_hat = a * x + c
+    # R^2 for the fixed-slope alignment y ~ x + c
+    y_hat = x + c
     ss_res = float(np.sum((y - y_hat) ** 2))
     ss_tot = float(np.sum((y - float(np.mean(y))) ** 2))
     fit_r2 = float("nan") if ss_tot <= 0 else float(1.0 - ss_res / ss_tot)
@@ -144,7 +148,7 @@ def dif(
     if len(x) >= 2 and np.std(x) > 0 and np.std(y) > 0:
         pearson_r = float(np.corrcoef(x, y)[0, 1])
 
-    # Spearman rank correlation (computed via pandas; no extra deps)
+    # Spearman rank correlation
     spearman_r = float(pd.Series(x).corr(pd.Series(y), method="spearman"))
 
     # -------------------------
@@ -235,7 +239,7 @@ def dif(
         print(f"Group A label                 : {GROUP_A_LABEL}")
         print(f"Group B label                 : {GROUP_B_LABEL}")
         print(f"Overlapping items (A ∩ B)      : {len(df)}")
-        print(f"Scale alignment               : b_{B} = {a:.4f} * b_{A} + {c:.4f}")
+        print(f"Scale alignment               : b_{B} = b_{A} + {c:.4f}")
         print(f"Fit R² (alignment)           : {fit_r2:.4f}")
         print(f"Pearson r (b_A vs b_B)       : {pearson_r:.4f}")
         print(f"Spearman ρ (b_A vs b_B)      : {spearman_r:.4f}")
@@ -415,7 +419,7 @@ def plot_dif(
         xs = np.linspace(float(np.min(x)), float(np.max(x)), 200)
         y_line = a * xs + c
 
-        ax.plot(xs, y_line, linewidth=fit_line_width, color="gray", zorder=2, label="alignment fit")
+        ax.plot(xs, y_line, linewidth=fit_line_width, color="gray", zorder=2, label="identity line")
         ax.plot(xs, y_line + thr_logits, linestyle="--", linewidth=band_line_width, color="orange",
                 label=f"+{int(Z_THR)} SD band")
         ax.plot(xs, y_line - thr_logits, linestyle="--", linewidth=band_line_width, color="blue",
