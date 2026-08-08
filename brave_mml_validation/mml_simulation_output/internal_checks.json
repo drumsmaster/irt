@@ -1,0 +1,7 @@
+{
+  "item_m_step_max_abs_error": 8.881784197001252e-15,
+  "item_m_step_pass": true,
+  "weights_sum": 1.0,
+  "weights_normalization_pass": true,
+  "all_pass": true
+}

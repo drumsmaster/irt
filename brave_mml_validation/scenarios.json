@@ -1,0 +1,446 @@
+{
+  "profiles": {
+    "smoke": {
+      "replications": 1,
+      "scenarios": [
+        "smoke_normal_random",
+        "smoke_bimodal_random",
+        "smoke_bimodal_adaptive"
+      ]
+    },
+    "core": {
+      "replications": 20,
+      "scenarios": [
+        "normal_random",
+        "skewed_random",
+        "bimodal_random",
+        "heavy_tail_random",
+        "normal_adaptive",
+        "bimodal_adaptive",
+        "bimodal_small_sample",
+        "bimodal_short_test",
+        "bimodal_long_test",
+        "bimodal_centered_bank"
+      ]
+    },
+    "publication": {
+      "replications": 200,
+      "scenarios": [
+        "normal_random",
+        "skewed_random",
+        "bimodal_random",
+        "heavy_tail_random",
+        "normal_adaptive",
+        "bimodal_adaptive",
+        "bimodal_small_sample",
+        "bimodal_short_test",
+        "bimodal_long_test",
+        "bimodal_centered_bank"
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "name": "smoke_normal_random",
+      "description": "Fast code check: wide normal persons, evenly spaced -10 to +10 items, and uniform random incomplete administration.",
+      "n_persons": 250,
+      "n_holdout": 150,
+      "n_items": 41,
+      "test_length": 20,
+      "person_distribution": "normal",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 61,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 5,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 350,
+      "item_tol": 0.001,
+      "latent_tol": 0.002
+    },
+    {
+      "name": "smoke_bimodal_random",
+      "description": "Fast non-normal check using a wide bimodal person population and random incomplete administration.",
+      "n_persons": 250,
+      "n_holdout": 150,
+      "n_items": 41,
+      "test_length": 20,
+      "person_distribution": "bimodal",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 61,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 5,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 350,
+      "item_tol": 0.001,
+      "latent_tol": 0.002
+    },
+    {
+      "name": "smoke_bimodal_adaptive",
+      "description": "Fast adaptive stress check: no warm-up, broad prior, and random selection among the nearest items at every step.",
+      "n_persons": 250,
+      "n_holdout": 150,
+      "n_items": 41,
+      "test_length": 20,
+      "person_distribution": "bimodal",
+      "administration": "adaptive_randomesque",
+      "candidate_pool": 10,
+      "routing_prior_sd": 5,
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 61,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 5,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 350,
+      "item_tol": 0.001,
+      "latent_tol": 0.002
+    },
+    {
+      "name": "normal_random",
+      "description": "Primary baseline: wide normal persons and uniform random incomplete administration over a -10 to +10 bank.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "normal",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "skewed_random",
+      "description": "Strongly skewed but unimodal person distribution; tests whether empirical MML avoids normal-distribution scale distortion.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "skewed",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "bimodal_random",
+      "description": "Wide bimodal population with random incomplete administration; the main test of the empirical latent distribution.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "bimodal",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "heavy_tail_random",
+      "description": "Heavy-tailed person population with random incomplete administration; stresses the outer scale without imposing multiple groups.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "heavy_tail",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "normal_adaptive",
+      "description": "Idealized fully adaptive randomesque administration with a normal population; isolates adaptive missingness from latent non-normality.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "normal",
+      "administration": "adaptive_randomesque",
+      "candidate_pool": 12,
+      "routing_prior_sd": 5,
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "bimodal_adaptive",
+      "description": "Idealized fully adaptive randomesque administration under a wide bimodal population; the main adaptive stress test.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "bimodal",
+      "administration": "adaptive_randomesque",
+      "candidate_pool": 12,
+      "routing_prior_sd": 5,
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "bimodal_small_sample",
+      "description": "Finite-sample stress test with only 750 calibration persons and a wide bimodal population.",
+      "n_persons": 750,
+      "n_holdout": 750,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "bimodal",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 10,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "bimodal_short_test",
+      "description": "Sparse-person-information condition: only 20 random items per person from a 201-item wide bank.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 20,
+      "person_distribution": "bimodal",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "bimodal_long_test",
+      "description": "High-information comparison: 80 random items per person from the same wide bimodal bank.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 80,
+      "person_distribution": "bimodal",
+      "administration": "random",
+      "item_shape": "even",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    },
+    {
+      "name": "bimodal_centered_bank",
+      "description": "A more BRAVE-like bank with many central items and relatively sparse tails, still spanning -10 to +10 logits.",
+      "n_persons": 3000,
+      "n_holdout": 1500,
+      "n_items": 201,
+      "test_length": 40,
+      "person_distribution": "bimodal",
+      "administration": "random",
+      "item_shape": "centered",
+      "item_range": [
+        -10,
+        10
+      ],
+      "person_range": [
+        -10,
+        10
+      ],
+      "n_nodes": 97,
+      "calibration_theta_range": [
+        -14,
+        14
+      ],
+      "min_item_responses": 20,
+      "estimators": [
+        "normal",
+        "empirical"
+      ],
+      "max_iter": 1000
+    }
+  ]
+}
